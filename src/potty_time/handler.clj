@@ -4,31 +4,30 @@
             [ring.adapter.jetty :as ring]
             [cheshire.core :as json]
             [ring.middleware.json :refer [wrap-json-body wrap-json-response]]
-            
+            [potty-time.format.cli :as cli]
+            [potty-time.format.browser :as browser]
             [ring.middleware.defaults :refer [wrap-defaults site-defaults]]))
 
-#_(defn get-response
+(def potty-states (atom {}))
+
+(defn get-response
   [req]
   (let [headers (:headers req)
         user-agent (get headers "user-agent")
         formatter (if (or (re-find #"curl" user-agent)
                           (re-find #"wget" user-agent))
-                    cli/format
-                    browser/format)]
-    (formatter (:params req))))
-
-#_(def post-response
-  [req]
-    (let []))
-
-(def state (atom {}))
+                    cli/to-curl
+                    browser/to-page)]
+    (formatter @potty-states)))
 
 (defroutes app-routes
-  (GET "/potty" [tid]
-       {:status 200 :body {:state (get @state tid)}})
-  (POST "/potty" [tid state]
-        (swap! state assoc tid state)
-        {:status 200 :body {:state state}})
+  (GET "/potty" req
+       (get-response req)
+       #_{:status 200 :body {:state @potty-states}})
+  (POST "/potty" req
+        (let [{:keys [toilet state]} (:body req)]
+          (swap! potty-states assoc toilet state)
+          {:status 200 :body {:state @potty-states}}))
   (route/not-found "Not Found"))
 
 (def app
